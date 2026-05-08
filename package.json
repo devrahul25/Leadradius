@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "install:all": "npm install && cd backend && npm install",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:worker": "cd backend && npm run worker",
+    "backend:migrate": "cd backend && npx prisma migrate deploy",
+    "dev:all": "concurrently -n web,api,worker -c green,cyan,yellow --kill-others-on-fail \"npm run dev\" \"npm run backend:dev\" \"npm run backend:worker\""
   },
   "dependencies": {
     "@tanstack/react-table": "^8.20.5",
@@ -25,6 +30,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
     "eslint": "^9.15.0",
     "eslint-config-next": "15.0.3",
     "postcss": "^8.4.49",

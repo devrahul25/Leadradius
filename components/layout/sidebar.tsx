@@ -17,9 +17,9 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/search", label: "Search Leads", icon: Search },
   { href: "/leads", label: "Saved Leads", icon: Database },
-  { href: "/exports", label: "Exports", icon: Download, badge: "Soon" },
-  { href: "/usage", label: "API Usage", icon: Activity, badge: "Soon" },
-  { href: "/settings", label: "Settings", icon: Settings, badge: "Soon" },
+  { href: "/exports", label: "Exports", icon: Download },
+  { href: "/usage", label: "API Usage", icon: Activity },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Sidebar() {

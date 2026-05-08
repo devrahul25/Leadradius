@@ -70,12 +70,26 @@ export function SearchForm({ onComplete }: Props) {
       await new Promise((r) => setTimeout(r, 350));
     }
 
-    const leads = await searchLeads(params);
-    setProgress(100);
-    setStep(`Found ${leads.length} qualified leads`);
-    await new Promise((r) => setTimeout(r, 250));
-    onComplete(leads, params);
-    setLoading(false);
+    try {
+      const leads = await searchLeads(params);
+      setProgress(100);
+      setStep(`Found ${leads.length} qualified leads`);
+      await new Promise((r) => setTimeout(r, 250));
+      onComplete(leads, params);
+    } catch (err: any) {
+      setProgress(100);
+      if (err?.status === 401 || err?.message?.toLowerCase().includes("token")) {
+        setStep("Authentication required. Redirecting to login...");
+        await new Promise((r) => setTimeout(r, 1500));
+        window.location.href = "/login";
+        return; // Skip setting loading to false
+      } else {
+        setStep(err?.message || "An error occurred during search.");
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

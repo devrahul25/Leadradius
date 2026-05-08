@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { Mail, Lock, User, ArrowRight, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { mockLogin, saveSession } from "@/lib/auth";
+import { register } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -14,13 +15,25 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 700));
-    saveSession({ ...mockLogin(email, password), name: name || mockLogin(email, password).name });
-    router.push("/dashboard");
+    setError(null);
+    try {
+      await register(name, email, password);
+      router.push("/dashboard");
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Registration failed";
+      setError(msg);
+      setLoading(false);
+    }
   }
 
   return (
@@ -76,6 +89,12 @@ export default function RegisterPage() {
             required
           />
         </div>
+
+        {error && (
+          <div className="rounded-lg border border-accent-rose/30 bg-accent-rose/10 p-3 text-sm text-accent-rose">
+            {error}
+          </div>
+        )}
 
         <Button type="submit" className="w-full" size="lg" loading={loading}>
           Create account

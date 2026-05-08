@@ -19,6 +19,8 @@ import { computeScore, labelFromScore, shouldFetchPlaceDetails } from "./lead-sc
 import { generateMockLeads } from "./mock-data";
 import type { BusinessLead, SearchParams } from "./types";
 import { haversineKm } from "./utils";
+import { USE_API } from "./config";
+import { api } from "./api";
 
 const GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const NEARBY_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
@@ -88,11 +90,70 @@ async function placeDetails(placeId: string) {
   return json.result ?? {};
 }
 
+interface BackendLead {
+  id: number;
+  placeId: string;
+  name: string;
+  category: string | null;
+  rating: number | null;
+  totalReviews: number | null;
+  phone: string | null;
+  website: string | null;
+  address: string | null;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  distanceKm: number | null;
+  score: number | null;
+  leadLabel: string | null;
+  status: string | null;
+  source: string | null;
+  createdAt: string;
+}
+
+function adaptBackendLead(b: BackendLead): BusinessLead {
+  return {
+    id: String(b.id),
+    placeId: b.placeId,
+    name: b.name,
+    category: b.category ?? "",
+    rating: b.rating ?? 0,
+    totalReviews: b.totalReviews ?? 0,
+    phone: b.phone ?? undefined,
+    address: b.address ?? "",
+    city: b.city ?? "",
+    latitude: b.latitude ?? 0,
+    longitude: b.longitude ?? 0,
+    distanceKm: b.distanceKm ?? 0,
+    score: b.score ?? 0,
+    label: (b.leadLabel as BusinessLead["label"]) ?? "Low Priority",
+    status: (b.status as BusinessLead["status"]) ?? "new",
+    source: b.source === "google" ? "google_places" : (b.source as BusinessLead["source"]) ?? "mock",
+    createdAt: b.createdAt,
+    website: b.website ?? undefined,
+  };
+}
+
 /**
- * High-level search used by the UI. Returns scored, labelled leads.
- * Falls back to mock data when no API key is configured.
+ * High-level search used by the UI. When NEXT_PUBLIC_API_URL is configured,
+ * calls the backend (which talks to Google or its own mock generator).
+ * Otherwise falls back to local mock data.
  */
 export async function searchLeads(params: SearchParams): Promise<BusinessLead[]> {
+  if (USE_API) {
+    // 1. Trigger the search on the backend (it persists scored leads to MySQL).
+    await api.post("/leads/search", params);
+    // 2. Read back the freshly upserted set, biggest score first.
+    const { data } = await api.get<BackendLead[]>("/leads", {
+      page: 1,
+      limit: 200,
+      sortBy: "score",
+      sortOrder: "desc",
+      category: params.category,
+    });
+    return data.map(adaptBackendLead);
+  }
+
   if (!useLive()) {
     return generateMockLeads(params);
   }

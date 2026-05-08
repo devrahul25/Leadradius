@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { Mail, Lock, ArrowRight, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { mockLogin, saveSession } from "@/lib/auth";
+import { login } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,14 +20,24 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    await new Promise((r) => setTimeout(r, 600)); // simulate latency
     if (!email.includes("@")) {
       setError("Enter a valid email address.");
       setLoading(false);
       return;
     }
-    saveSession(mockLogin(email, password));
-    router.push("/dashboard");
+    try {
+      await login(email, password);
+      router.push("/dashboard");
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Login failed";
+      setError(msg);
+      setLoading(false);
+    }
   }
 
   return (

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Bell, Search as SearchIcon, Sun, Moon, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { loadSession, clearSession, type AuthSession } from "@/lib/auth";
+import { loadSession, logout, type AuthSession } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 export function Navbar() {
@@ -17,8 +17,9 @@ export function Navbar() {
     setSession(loadSession() ?? {
       email: "team@jaiveeru.co.in",
       name: "JV Team",
-      token: "demo",
+      accessToken: "demo",
       role: "user",
+      source: "mock",
     });
   }, []);
 
@@ -29,8 +30,8 @@ export function Navbar() {
     .join("")
     .toUpperCase() ?? "U";
 
-  function logout() {
-    clearSession();
+  async function handleLogout() {
+    await logout();
     router.push("/login");
   }
 
@@ -65,7 +66,7 @@ export function Navbar() {
         <div className="h-9 w-9 rounded-full bg-gradient-to-br from-brand-500 to-accent-cyan flex items-center justify-center text-white text-xs font-semibold">
           {initials}
         </div>
-        <Button variant="ghost" size="icon" onClick={logout} title="Sign out">
+        <Button variant="ghost" size="icon" onClick={handleLogout} title="Sign out">
           <LogOut className="h-4 w-4" />
         </Button>
       </div>

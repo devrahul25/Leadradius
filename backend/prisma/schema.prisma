@@ -1,0 +1,91 @@
+// Prisma schema for LeadRadius AI.
+// Run `npx prisma migrate dev --name init` to create tables.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  user
+  admin
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(255)
+  email        String   @unique @db.VarChar(255)
+  password     String   @db.Text
+  role         Role     @default(user)
+  refreshToken String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  searches     SearchHistory[]
+  exports      ExportJob[]
+}
+
+model BusinessLead {
+  id           Int      @id @default(autoincrement())
+  placeId      String   @unique @db.VarChar(255)
+  name         String   @db.VarChar(255)
+  category     String?  @db.VarChar(255)
+  rating       Float?
+  totalReviews Int?
+  phone        String?  @db.VarChar(64)
+  website      String?  @db.VarChar(512)
+  address      String?  @db.Text
+  city         String?  @db.VarChar(255)
+  latitude     Float?
+  longitude    Float?
+  distanceKm   Float?
+  score        Float?
+  leadLabel    String?  @db.VarChar(64)
+  status       String?  @default("active") @db.VarChar(32)
+  source       String?  @default("google") @db.VarChar(32)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([rating])
+  @@index([leadLabel])
+  @@index([city])
+  @@index([createdAt])
+}
+
+model SearchHistory {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  keyword     String   @db.VarChar(255)
+  location    String   @db.VarChar(255)
+  radius      Int
+  totalLeads  Int      @default(0)
+  apiCalls    Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ExportJob {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  format      String   @db.VarChar(16)         // csv | xlsx
+  filters     Json?
+  status      String   @default("pending") @db.VarChar(32) // pending | running | done | failed
+  filePath    String?  @db.VarChar(512)
+  rowCount    Int      @default(0)
+  errorMsg    String?  @db.Text
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}

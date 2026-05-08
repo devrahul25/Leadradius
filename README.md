@@ -1,113 +1,132 @@
-# LeadRadius AI — Frontend Prototype
+# LeadRadius AI — Full Stack
 
-A polished Next.js 15 + React 19 + Tailwind frontend for **LeadRadius AI**, an AI-powered local business lead intelligence platform. It demonstrates the full UX of the product described in the spec — auth, dashboard analytics, radius search, scored lead table, and CSV export — without requiring a backend to run.
+AI-powered local business lead intelligence platform. Two apps in one repo:
 
-The app uses realistic mock data by default, and ships with the real Google Places integration code wired up behind an env flag so you can switch to live data when you have an API key.
+- **Frontend** (root) — Next.js 15 + React 19 + Tailwind. Auth, dashboard analytics, radius search, scored lead table, CSV export. See `app/`, `components/`, `lib/`.
+- **Backend** (`backend/`) — Node + Express + TypeScript + Prisma + MySQL + BullMQ + Redis. JWT auth, Google Places integration with cost-optimized Place Details, lead scoring, CSV/Excel export queue, admin endpoints. See `backend/README.md` for the full module map.
 
-## What's built
+The frontend talks to the backend through `NEXT_PUBLIC_API_URL`. If that env var is unset, the frontend falls back to local mock data — so the UI works standalone too.
 
-- **Authentication** — Login + Register with a mock JWT flow. Sessions persist in `localStorage`.
-- **Dashboard** — Stat cards, lead-quality donut, daily searches area chart, leads-by-category and leads-by-city bars, API usage panel, top-leads strip. Powered by Recharts and animated with Framer Motion.
-- **Radius search** — Location, radius slider (5–100 km), category, min rating/reviews, "phone required" toggle, animated multi-step search progress.
-- **Lead table** — TanStack Table with sorting, global filter, pagination, bulk row selection, label-coded quality chips, score bars, copy-on-click phone numbers, CSV export of either the filtered set or the selected rows.
-- **AI scoring** — `score = rating × 20 + log(reviews + 1) × 10`, bucketed into Premium / High Potential / Medium / Low Priority.
-- **Cost optimization** — The integration only calls the expensive Place Details endpoint for leads that pass `rating ≥ 4.2 && reviews ≥ 80`, mirroring the spec.
-- **Luxury dark UI** — Glassmorphism cards, brand gradients, grid background, subtle glow shadows, polished focus states.
+## Quickstart — run everything together
 
-## Stack
-
-| Layer | Choice |
-| --- | --- |
-| Framework | Next.js 15 App Router |
-| UI | React 19, Tailwind CSS, Framer Motion, Lucide icons |
-| Data table | `@tanstack/react-table` v8 |
-| Charts | `recharts` |
-
-## Getting started
+You'll need:
+- Node 20+ (you have v20/v22)
+- MySQL running locally (Homebrew: `brew install mysql && brew services start mysql`)
+- Redis running locally (Homebrew: `brew install redis && brew services start redis`)
+- `mysql` CLI on your `$PATH` for the one-liner below
 
 ```bash
-# 1. Install
-npm install
+# 1. Install everything (frontend + backend)
+npm run install:all
 
-# 2. (Optional) configure env
+# 2. Create the DB and a root password
+mysql -uroot <<'SQL'
+ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'rootpw';
+CREATE DATABASE IF NOT EXISTS leadradius;
+FLUSH PRIVILEGES;
+SQL
+
+# 3. Configure env vars
 cp .env.example .env.local
+cp backend/.env.example backend/.env
+# Edit backend/.env: set JWT_SECRET, JWT_REFRESH_SECRET, leave GOOGLE_API_KEY blank
+# Edit .env.local: NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1 is already set
 
-# 3. Run the dev server
-npm run dev
-# → http://localhost:3000
+# 4. Run database migrations
+npm run backend:migrate
+
+# 5. Boot frontend + API + worker, all in one terminal
+npm run dev:all
 ```
 
-The app redirects `/` to `/dashboard`. Sign in at `/login` (any email + password works in the prototype).
+Open http://localhost:3000. Register a new user — you should see it land in the MySQL `User` table (`mysql -uroot -prootpw -e "SELECT id, name, email, role FROM leadradius.User;"`).
 
-## Adding your Google Places API key
+Run a search on the **Search Leads** page — even without a Google API key, the backend generates seeded leads (because `USE_LIVE_PLACES=false`), persists them to MySQL, and your **Saved Leads** page shows the freshly stored set.
 
-The mock data lets the app run immediately. When you're ready to use real Google data:
+## What's wired up
 
-1. Create a key at https://console.cloud.google.com/google/maps-apis (enable **Places API**, **Geocoding API**).
-2. Set both env vars in `.env.local`:
-   ```env
-   NEXT_PUBLIC_GOOGLE_API_KEY=AIza…
-   NEXT_PUBLIC_USE_LIVE_PLACES=true
-   ```
-3. Restart `npm run dev`. Searches now hit Google.
+| Frontend action | Backend endpoint | Notes |
+| --- | --- | --- |
+| Register form submit | `POST /api/v1/auth/register` | bcrypt + JWT pair returned |
+| Login form submit | `POST /api/v1/auth/login` | JWT pair stored in localStorage |
+| Logout button | `POST /api/v1/auth/logout` | clears refresh token server-side |
+| Search form submit | `POST /api/v1/leads/search` then `GET /api/v1/leads` | persists scored leads, returns the set |
+| Leads page filters | `GET /api/v1/leads?...` (planned) | currently reads the persisted set |
+| CSV export | `GET /api/v1/export/csv` (planned) | currently exports from local table |
 
-> **Production caveat:** `NEXT_PUBLIC_*` vars are exposed to the browser. For real deployments, move `lib/google-places.ts` behind a Next.js Route Handler (`app/api/leads/search/route.ts`) and call it server-side so the key stays private. The integration code in this repo is shaped to make that move trivial.
+The frontend gracefully falls back to mock data if `NEXT_PUBLIC_API_URL` is unset — useful when you want to demo the UI without standing up MySQL/Redis.
 
-## File tree
+## Going live with Google Places
 
-```
-app/
-  (auth)/
-    layout.tsx          ← split-screen auth shell
-    login/page.tsx
-    register/page.tsx
-  (dashboard)/
-    layout.tsx          ← sidebar + navbar
-    dashboard/page.tsx  ← analytics overview
-    search/page.tsx     ← radius search
-    leads/page.tsx      ← lead table + CSV export
-  globals.css
-  layout.tsx
-  page.tsx              ← redirects to /dashboard
+Edit `backend/.env`:
 
-components/
-  ui/                   ← Button, Card, Input/Label, Badge, Slider, Switch, Select
-  layout/               ← Sidebar, Navbar
-  dashboard/            ← StatCard, charts (Recharts)
-  leads/                ← SearchForm, LeadTable
-
-lib/
-  types.ts              ← BusinessLead, SearchParams, LeadLabel
-  utils.ts              ← cn(), CSV export, haversine, formatters
-  lead-scoring.ts       ← score formula, label buckets, label styles
-  google-places.ts      ← real Geocode/Nearby/Details integration (env-gated)
-  mock-data.ts          ← deterministic mock generator + SEED_LEADS
-  lead-store.ts         ← localStorage bridge between /search and /leads
-  auth.ts               ← mock JWT session helpers
+```env
+GOOGLE_API_KEY=AIza...
+USE_LIVE_PLACES=true
 ```
 
-## What's intentionally **not** built (yet)
+Restart the backend. From now on `/leads/search` calls Google Geocoding → Nearby Search → Place Details (only for `rating ≥ 4.2 && reviews ≥ 80` per the spec's cost gate). All three calls are Redis-cached for 12 hours.
 
-The spec describes a full SaaS platform. This prototype is a focused frontend slice. The following pieces are **not** in this codebase and would be the natural next step:
+## Repo layout
 
-- Real backend (Express + MySQL + BullMQ + Redis)
-- Server-side Google Places proxy + caching
-- `/api/auth/*` routes with bcrypt + JWT refresh
-- `/leads/[id]` detail page with Maps embed + reviews
-- Background queue dashboard
-- PDF/Excel exporters (CSV is implemented)
-- Outreach module (WhatsApp, SMS, Email, Call logs)
-- Admin panel
-- Docker compose, nginx, PM2
+```
+leadradius-ai/
+├── app/                        Next.js App Router pages
+│   ├── (auth)/login,register
+│   └── (dashboard)/dashboard,search,leads
+├── components/                 Sidebar, Navbar, charts, table, search form, UI primitives
+├── lib/                        api client, auth (real + mock), config, lead-scoring, mock-data
+├── backend/                    Express + Prisma + BullMQ
+│   ├── src/
+│   │   ├── config/             env (zod), logger (winston), redis, swagger
+│   │   ├── controllers/        auth, lead, export, admin, health
+│   │   ├── database/           prisma client singleton
+│   │   ├── jobs/               BullMQ processors (csv-export, duplicate-cleanup)
+│   │   ├── middlewares/        auth, validate, rate-limit, error-handler, not-found
+│   │   ├── queues/             BullMQ queue registry
+│   │   ├── repositories/       Prisma data access
+│   │   ├── routes/v1/          auth, leads, export, admin
+│   │   ├── services/           auth, lead, export, admin, google-places, mock-leads
+│   │   ├── utils/              ApiError, response, tokens, password, haversine, lead-scoring, cache
+│   │   ├── validators/         zod schemas
+│   │   ├── workers/            worker bootstrap
+│   │   ├── app.ts              express factory
+│   │   └── index.ts            HTTP server entrypoint
+│   ├── prisma/schema.prisma    User, BusinessLead, SearchHistory, ExportJob
+│   ├── Dockerfile + docker-compose.yml + ecosystem.config.js
+│   └── README.md
+├── package.json                frontend deps + dev:all orchestrator
+└── README.md                   ← you are here
+```
 
-Each was scoped out for this session in favor of shipping a polished, runnable UI. The interfaces in `lib/types.ts` and the integration shape in `lib/google-places.ts` are designed to let you drop in real backend calls without rewriting the UI.
+## Useful one-liners
 
-## Demo notes
+```bash
+# Just the API + worker (skip frontend)
+npm run backend:dev      # in one terminal
+npm run backend:worker   # in another
 
-- The demo email `team@jaiveeru.co.in` is pre-filled in the login form. Anything works.
-- Use `admin@leadradius.io` to get the `admin` role on the session object.
-- Refreshing `/leads` keeps your most recent search results because they're persisted to `localStorage` via `lib/lead-store.ts`.
-- The progress bar on the search form is a UX nicety — even on mock data it walks through the same stages a real search would.
+# Health check
+curl localhost:4000/health
+
+# Browse the API docs (Swagger UI)
+open http://localhost:4000/api/docs
+
+# Tail worker logs
+# (workers print to stdout in dev — concurrently colors them yellow)
+```
+
+## Troubleshooting
+
+**`tsx` SyntaxError on `npm run backend:dev`** — your backend `node_modules` was corrupted by an interrupted install. `cd backend && rm -rf node_modules package-lock.json && npm install`.
+
+**`P1000: Authentication failed` from Prisma** — root has no password. Run the `ALTER USER` block above, then update `backend/.env` to `DATABASE_URL="mysql://root:rootpw@localhost:3306/leadradius"`.
+
+**`P1001: Can't reach database server`** — MySQL isn't running. `brew services start mysql`.
+
+**Frontend shows mock data even though backend is running** — `.env.local` doesn't include `NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1`, or the file isn't picked up (restart `next dev`).
+
+**CORS error in browser console** — your frontend origin isn't in the backend allowlist. Edit `backend/.env`: `CORS_ORIGINS=http://localhost:3000`.
 
 ## License
 
